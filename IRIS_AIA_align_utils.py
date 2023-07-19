@@ -1,9 +1,11 @@
 """
-This file contains the functions to align IRIS and AIA data. It is a collection of code from different libraries plus my own contributions.
-An example showing how the functions can be used is given below.
+This file contains the functions to align IRIS and AIA data. It is a collection of code from different libraries plus my own contributions. In the future we will try to modify the functions to create aligned movies and download whole HMI/AIA datasets for
+further studies with solar flare forecasting. An example showing how the functions can be used is given below.
 
 Author: Jonas Zbinden, github: @jonaszubindu, email: jonas.zbinden@unibe.ch
 """
+
+# Import any necessary libraries
 
 from copy import deepcopy
 
@@ -28,11 +30,8 @@ from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.ticker import MultipleLocator
 
-from scipy.interpolate import interp1d
 from sunpy.time import parse_time
 
-from irispy.io import read_sji_lvl2
-from irispy.obsid import ObsID
 from astropy.io import fits
 import os
 import subprocess
@@ -71,6 +70,10 @@ def ASTROPY_FILE_METHOD( path ):
 
 
 def runcmd(cmd, verbose = False, *args, **kwargs):
+
+    """
+    Run terminal command from within python
+    """
 
     process = subprocess.Popen(
         cmd,
@@ -118,7 +121,7 @@ def array2dict( header, data ):
 
 class IRIS_SJI_cube:
     """
-    Loads an IRIS SJI map from the IRIS archive and creates data, wcs, and times objects.
+    Loads an IRIS SJI map from the IRIS archive and creates data, wcs, and sji_times, raster_times, and time ordered sji and raster headers objects.
 
     """
     def __init__(self, year, month, day, hour, minute, second, obsid):
@@ -441,6 +444,10 @@ class IRIS_SJI_cube:
 
 class IRIS_coaligned_AIA_images:
 
+    """
+    Looks up or downloads coaligned AIA images to IRIS. If you want to use the original AIA data, skip this part and go to HMI_AIA_single_image. This one works the same as IRIS_SJI_cube. It reates data, wcs, and times, and header objects.
+    """
+
     def __init__(self, year, month, day, hour, minute, second, obsid, wavelength):
 
         if month < 10:
@@ -500,7 +507,36 @@ class HMI_AIA_single_image:
 
     def __init__(self, time, dataset_name, hours=None, wavelength='171'):
 
-        """function to get the center of an active region at a given time"""
+        """
+        This class collects AIA and HMI data and downloads them for a given time length. Always provide a wavelength informaiton as a keyword argument. Otherwise you might download huge datasets!
+
+        Input:
+
+            time : astropy Time object, start time
+
+            dataset_name : str, either magnetogram, continuum, aia_image.
+
+            hours : int, number of hours for which you want to collect HMI/AIA data. This part is still under development.
+
+            wavelength : str, AIA filter wavelength number
+
+        Attributes:
+
+            wavelength : from input
+
+            header : astropy header object
+
+            times : astropy Time object, containing the exact time of the returned data.
+
+            data : np.array, containing the image data.
+
+            wcs : astropy WCS object, for coordinate transformations.
+
+
+        """
+
+        if hours>48:
+            raise ValueError(f"hours is too long, choose a number below 48, currently chosen : {hours}")
 
         time_datetime = time.datetime
         time_iso = time.iso
@@ -550,7 +586,11 @@ class HMI_AIA_single_image:
 
 
 def download_dataset(loc, segments, dataset_name, keys):
-    """Download dataset in segments at loc"""
+    """
+    Download dataset in segments at loc and return
+
+    data, wcs, times, header
+    """
 
     if isinstance(loc, np.ndarray):
 
@@ -619,14 +659,15 @@ def get_active_region_center(ar_number, time):
 
 
 def parse_tai_string(tstr, datetime=True):
-        """function to convert T_REC into a datetime object"""
-        year   = int(tstr[:4])
-        month  = int(tstr[5:7])
-        day    = int(tstr[8:10])
-        hour   = int(tstr[11:13])
-        minute = int(tstr[14:16])
-        if datetime: return dt_obj(year,month,day,hour,minute)
-        else: return year,month,day,hour,minute
+    """function to convert T_REC into a datetime object"""
+    year   = int(tstr[:4])
+    month  = int(tstr[5:7])
+    day    = int(tstr[8:10])
+    hour   = int(tstr[11:13])
+    minute = int(tstr[14:16])
+    if datetime: return dt_obj(year,month,day,hour,minute)
+    else: return year,month,day,hour,minute
+
 
 def parse_iso_string_to_tai(tstr):
     """function to convert an ISO string to a TAI string"""
@@ -869,13 +910,30 @@ class iris_coordinates:
 
 
 def Load_data_labels(Label_set_filename, line):
+    """
+    Load labels to know for which model which observations were used for training and which ones for testing.
+
+    """
     path_cleaned = f'/sml/zbindenj/MgIIk/cleaned/' #using data prepared from aggregate
 
     Label_set_ = np.load(path_cleaned + Label_set_filename, allow_pickle=True)['arr_0'][()]
 
     return Label_set_
 
+
+
 def get_slit_yprob_data_to_overplot(obs_cls_Mg, time_):
+
+    """
+    Evaluate models on the chosen obs and create aggregate of yhat outputs. This takes a single time step and creates a data array containing the aggregated yhat outputs for that time step. The trained models will not be part of the repository.
+
+    Input:
+
+        obs_cls_Mg : Obs_raw_data object from IRIScast, containing all the processed spectra and data of that IRIS observation.
+
+        time_ : astropy Time object, at which the outputs should be calculated.
+
+    """
 
     num_of_models = 0
 
@@ -895,8 +953,8 @@ def get_slit_yprob_data_to_overplot(obs_cls_Mg, time_):
     num_of_models = 0
 
     # Go over all models and take the models that did not have the observation in the training set
-    for itter in range(5):
-        for k in range(5):
+    for itter in range(5): # number of repetitions, needs to be adjusted
+        for k in range(5): # number of splits, needs to be adjusted
 
             label_train = Label_set[str(k) + '_' + str(itter) + '_training']
 
@@ -905,7 +963,7 @@ def get_slit_yprob_data_to_overplot(obs_cls_Mg, time_):
                 pass
             else:
                 # Load model with itter and k
-                save_path_models = f'/sml/zbindenj/MgIIk/models/decision_model_zbinden_test_vae7_15_all_final_{k}_{itter}'
+                save_path_models = f'~/models/decision_model_{k}_{itter}'
 
                 decision_model = mdls.ConvNet(960, 6) # Initiate network
 
@@ -919,8 +977,6 @@ def get_slit_yprob_data_to_overplot(obs_cls_Mg, time_):
 
                 yhat_arr_probs = yhat_probs.detach().numpy().squeeze()
                 yhat_arr_probs = yhat_arr_probs.reshape(yhat_arr_probs_sum.shape[0], yhat_arr_probs_sum.shape[1])
-
-                # yhat_arr_probs = yhat_probs.reshape(obs_cls_Mg.im_arr.shape[0], obs_cls_Mg.im_arr.shape[1], obs_cls_Mg.im_arr.shape[2], 1)
 
                 yhat_arr_probs_sum = yhat_arr_probs_sum + yhat_arr_probs.reshape(yhat_arr_probs.shape[0], yhat_arr_probs.shape[1],1)
 
@@ -936,7 +992,21 @@ def get_slit_yprob_data_to_overplot(obs_cls_Mg, time_):
 
 
 
-def plot_sji_image(sjiind, plot_arr, save=False):
+def plot_sji_image(self, sjiind, plot_arr, save=False):
+
+    """
+    Plots an SJI image for a given sji index and the slit information to be overplotted.
+
+    Input:
+        self : IRIS_SJI_CUBE object
+
+        sjiind : int, Index at which the sji image should be taken
+
+        plot_arr : np.array, The slit information to be overplotted
+
+        save : bool, set True if the image should be saved, adjust the path accordingly
+
+    """
 
     max_intensity=1
 
@@ -968,7 +1038,7 @@ def plot_sji_image(sjiind, plot_arr, save=False):
     if not max_intensity:
         max_intensity = np.max(plot_arr)*.2
     colors = cmap(np.asarray([plot_arr[m,r_ind] for m, r_ind in enumerate(rast_ind)]).squeeze()/max_intensity)
-    if obs_cls_Mg.num_of_raster_pos != 1:
+    if plot_arr.shape[0] != 1:
         scat = ax.scatter(xcoords, ycoords, marker='s', s=30, c=colors.reshape(colors.shape[0]*colors.shape[1], 4), alpha=.25)
     else:
         scat = ax.scatter(xcoords, ycoords, marker='s', s=30, c=colors, alpha=.25)
@@ -997,6 +1067,10 @@ def plot_sji_image(sjiind, plot_arr, save=False):
 # SST functions:
 
 class register_coordinates:
+    """
+        This is a handmade function to convert between pixel coordinates and arcseconds, relative to the center of the FOV.
+    """
+
     def __init__(self, coordinates_data, image_shape):
         delta_x = coordinates_data[0][1][0] - coordinates_data[0][0][0]
         delta_y = coordinates_data[0][1][0] - coordinates_data[0][0][0]
@@ -1004,12 +1078,11 @@ class register_coordinates:
         self.conversion_factor_x = delta_x/image_shape[-2]
         self.conversion_factor_y = delta_y/image_shape[-1]
 
-# reg_coord = register_coordinates(coordinates_data, image_shape)
-
-# HMI_resolution = 0.5 # arcsec/pixel
-# SST_resolution_present_map = reg_coord.conversion_factor_x # arcsec/pixel
-
 class coordinates_projection(register_coordinates):
+
+    """
+    Transforms between the two coordinate systems given from register_coordinates, can be used to for instance set ticks in a matplotlib figure.
+    """
 
     name='coordinates_projection'
 
@@ -1031,6 +1104,7 @@ class coordinates_projection(register_coordinates):
         y = np.arange(profs_map_shape[-1])
         return x, y
 
+
 def downsample_SST_map(SST_map, HMI_resolution, SST_resolution_present_map):
     "Downsamples SST map to HMI resolution"
     binning_factor = int(HMI_resolution/SST_resolution_present_map)
@@ -1040,10 +1114,12 @@ def downsample_SST_map(SST_map, HMI_resolution, SST_resolution_present_map):
     return SST_map_downsampled
 
 
-if __name__ == "__main__":
-  obs_id_w_ext = '20140205_153921_3860259280' + '_0'
-  obs_id = '20140205_153921_3860259280'
 
+# Example to understand the code:
+if __name__ == "__main__":
+
+  # IRIS type obs id to get the information to load the data, can also be constructed in some other way.
+  obs_id = '20140205_153921_3860259280'
 
   print(obs_id)
   year = int(obs_id[:4])
@@ -1054,71 +1130,68 @@ if __name__ == "__main__":
   second = int(obs_id[13:15])
   obsid = int(obs_id[16:])
 
-  sji = IRIS_SJI_cube(year, month, day, hour, minute, second, obsid)
+  sji = IRIS_SJI_cube(year, month, day, hour, minute, second, obsid) # Load Iris observation data
 
 
-  # get the time of the begin of the flare:
-  obs_cls = utils.load_obs_data(obs_id_w_ext, 'MgIIk', 'PF')
-  obs_cls.obs_id_w_ext = obs_id_w_ext
-  times, im_arr, norm_vals = utils.transform_arrays(obs_cls.times_global, obs_cls.im_arr_global, obs_cls.norm_vals_global, obs_cls.num_of_raster_pos, forward=False)
+  # Choose a frame number to plot from the sji obs.
+  sjiind = 95
+  # Get the raster index of that point in time
+  rast_ind = np.argmin(np.abs(sji.raster_times - sji.sji_times[sjiind]))
 
-  obs_cls.times = times
-  obs_cls.im_arr = im_arr
-  obs_cls.norm_vals = norm_vals
-
-  last_obs_t = np.max(np.where(np.logical_and(np.all(obs_cls.im_arr[0,:,np.int(np.round(obs_cls.im_arr.shape[2]/2)),:]!=0, axis=-1), np.all(obs_cls.im_arr[-1,:,np.int(np.round(obs_cls.im_arr.shape[2]/2)),:]!=0, axis=-1)))[0])
-
-  flare_start_mjd = Time(obs_cls.times[0,last_obs_t], format='unix')
-
-  rast_ind = np.argmin(np.abs(sji.raster_times - flare_start_mjd))
-
+  # give the dimensions of the sji image data to a seperate variable, just for convenience later.
   dims_sji = sji.data.shape
 
-  sjiind = np.argmin(np.abs(sji.sji_times - sji.raster_times[rast_ind]))
-
+  # Store the exact raster time step as a astropy time object for later info
   date_obs = parse_time(sji.raster_times[rast_ind], format='unix').to_datetime()
+
+  # To evaluate the raster slit data, for instance the yhat model outputs, we use the rainbow colormap 'jet'
   cmap = plt.get_cmap('jet')
 
-  plot_arr, _ = get_slit_yprob_data_to_overplot(obs_cls, sji.raster_times[rast_ind])
+  # Here as slit data we will use in this example
+  plot_arr = np.load('plot_arr_for_test.npy')
 
-  if sji.n_raster_pos == 1:
+  if sji.n_raster_pos == 1: # Convert the data to colors.
       colors = cmap(plot_arr).squeeze()
   else:
       colors = cmap(plot_arr).squeeze().reshape(plot_arr.squeeze().shape[0]*plot_arr.squeeze().shape[1],4, order='A')
 
   print(obs_id , sji.sji_header[sjiind]['OBS_DESC'])
 
-  dataset_name = 'continuum'
+  dataset_name = 'continuum' # We gonna use the a continuum image and an AIA 304 image (below), this can of course be modified to any of the other options.
 
-  sji_times = sji.sji_times
+  sji_times = sji.sji_times # store the times from the sji image as a separate variable.
 
-  raster_ind = sji.get_slit_pos(sjiind)
-  sji.get_sunpy_wcs(sjiind)
+  raster_ind = sji.get_slit_pos(sjiind) # This is not the rast_ind index from before. This is the slit position at the time of sjiind
+  sji.get_sunpy_wcs(sjiind) # For the coordinate transformations between IRIS and AIA/HMI we use the function get_sunpy_wcs. This creates an additional attribute to the sji instance that contains the wcs object generated by sunpy. Tests have turned out that the sunpy method does some modifications to the standard wcs object to make it more robust and more accurate. We have to use the same wcs procedure through out the entire method.
 
-  observer = sji._sunpy_observer_coordinate
+  observer = sji._sunpy_observer_coordinate # Define an observer for the later coordinate transformations. Since we want to see how the FOV and slit data from IRIS looks in the SDO frame, our initial observer is IRIS and we use the sji wcs object coordinate. This can also be replaced with any other observer if the alignment between different AIA and HMI channels would be desired.
 
-  hmi_ = HMI_AIA_single_image(sji.raster_times[rast_ind], dataset_name)
-  hmi_map = sunpy.map.Map(hmi_.data, hmi_.header)
-  norm = cs.Normalize()
+  hmi_ = HMI_AIA_single_image(sji.raster_times[rast_ind], dataset_name) # Create the HMI/AIA data and coordinates object.
+  hmi_map = sunpy.map.Map(hmi_.data, hmi_.header) # We also create a map object for HMI/AIA to optain the wcs object from sunpy.
+  norm = cs.Normalize() # Get norm for the colors
   print(date_obs, hmi_.times)
 
+
+  # Generate the figure and add a gridspec for the two subfigures
   fig = plt.figure(figsize=(50,20))
   gs = fig.add_gridspec(1,2)
   gs.update(wspace=0.05, hspace=0.05)
   ax = fig.add_subplot(gs[0,0], projection=hmi_map.wcs)
-  im = ax.imshow(hmi_map.data, cmap='binary_r', norm=norm, interpolation='nearest', origin='lower')
+  im = ax.imshow(hmi_map.data, cmap='binary_r', norm=norm, interpolation='nearest', origin='lower') # plot first figure
 
+  # Generate a frame for the FOV of IRIS and map with the sji._sunpy_wcs object to world coordinates. For plotting then convert the coordinates back into AIA/HMI pixel coordinates.
   corners21 = np.array([[0,0],[0,dims_sji[1]-1],[dims_sji[2]-1,dims_sji[1]-1],[dims_sji[2]-1,0]])
   corners211 = np.array([sji._sunpy_wcs.pixel_to_world(corn[0], corn[1]) for corn in corners21])
-
   corners213 = np.array([hmi_map.wcs.world_to_pixel(corn) for corn in corners211])
 
+  # Create a Polygon and plot it over the image.
   try:
       b = Polygon(corners213, edgecolor='cyan', facecolor='none', closed=True, lw=2, alpha=1, transform=ax.get_transform(hmi_map.wcs))
       ax.add_patch(b)
   except:
       pass
 
+  # Set some image properties, change as required
   im.axes.set_xlabel( 'Solar coordinates x', fontsize=32 )
   im.axes.set_ylabel( 'Solar coordinates y', fontsize=32 )
   ax.xaxis.set_major_locator(MultipleLocator(100))
@@ -1132,9 +1205,10 @@ if __name__ == "__main__":
   im.axes.tick_params(axis='x', labelsize=32)
   im.axes.tick_params(axis='y', labelsize=32)
 
+  # Get the slit coordinates in world coordinates. Use mode 'hmi' here to get the right projections. If you use IRIS aligned AIA images or SJI images, then use mode 'iris'
   xcoords, ycoords = sji.raster_x_coord(sjiind, plot_arr, mode='hmi')
   xcoords, ycoords = hmi_map.wcs.world_to_pixel(SkyCoord(xcoords, ycoords, unit=u.arcsec, observer=observer, frame='helioprojective', obstime=date_obs))
-  scat2 = ax.scatter(xcoords, ycoords, marker='s', s=4, c=colors)
+  scat2 = ax.scatter(xcoords, ycoords, marker='s', s=4, c=colors) # plot the colors scattered at the coordinates of the slit.
   scat2.set_alpha(.3)
 
   # Set bounding box for the plot on the HMI map
@@ -1151,7 +1225,6 @@ if __name__ == "__main__":
   y_upp_lim = ycen + bounds_y
 
   coords_low_lim = SkyCoord(x_low_lim, y_low_lim, unit='arcsec', frame='helioprojective', observer=observer, obstime=sji.raster_times[rast_ind])
-
   coords_upp_lim = SkyCoord(x_upp_lim, y_upp_lim, unit='arcsec', frame='helioprojective', observer=observer, obstime=sji.raster_times[rast_ind])
 
   lim_lower_pix = hmi_map.wcs.world_to_pixel(coords_low_lim)
@@ -1166,7 +1239,7 @@ if __name__ == "__main__":
 
 
   # Plotting different filters in AIA:
-
+  # This part of the code works exactly the same as the part above.
   dataset_name = 'aia_image'
   wavelength = 304
 
@@ -1178,10 +1251,8 @@ if __name__ == "__main__":
   ax = fig.add_subplot(gs[0,1], projection=hmi_map.wcs)
   im = ax.imshow(hmi_map.data**.25, cmap='binary_r', norm=norm, interpolation='nearest', origin='lower')
 
-
   corners21 = np.array([[0,0],[0,dims_sji[1]-1],[dims_sji[2]-1,dims_sji[1]-1],[dims_sji[2]-1,0]])
   corners211 = np.array([sji._sunpy_wcs.pixel_to_world(corn[0], corn[1]) for corn in corners21])
-
   corners213 = np.array([hmi_map.wcs.world_to_pixel(corn) for corn in corners211])
 
   try:
