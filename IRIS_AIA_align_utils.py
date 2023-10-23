@@ -1018,7 +1018,7 @@ def plot_sji_image(self, sjiind, plot_arr, save=False):
     plt.clf()
     plt.close()
 
-    exptime = sji.sji_headers[sjiind]['EXPTIME']
+    exptime = sji.sji_header[sjiind]['EXPTIME']
 
     # Generate initial figure for the animation with overplotted slit colors.
     sji_exped = (sji[sjiind,:,:].clip(min=0)/exptimes[sjiind,:,:])**0.4
