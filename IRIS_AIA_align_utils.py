@@ -172,7 +172,7 @@ class IRIS_SJI_cube:
             pass
         
         if skip:
-            raise ValueError(f"{wave} is not available, stopping. Choose existing file")
+            raise ValueError(f"{wave} is not available, stopping. Choose existing file  {sji_files_avail}")
 
 
         filename_raster_list = sorted([file for file in os.listdir(path) if fnmatch.fnmatch(file, '*_r*.fits')])
