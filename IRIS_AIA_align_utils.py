@@ -124,7 +124,7 @@ class IRIS_SJI_cube:
     Loads an IRIS SJI map from the IRIS archive and creates data, wcs, and sji_times, raster_times, and time ordered sji and raster headers objects.
 
     """
-    def __init__(self, year, month, day, hour, minute, second, obsid):
+    def __init__(self, year, month, day, hour, minute, second, obsid, wave=1400):
 
         if month < 10:
             month = '0' + str(month)
@@ -144,30 +144,47 @@ class IRIS_SJI_cube:
         self.minute = minute
         self.second = second
         self.obsid = obsid
-
-
+        
+        
         base_path = '/sml/iris/'
         path = base_path + str(year) + '/' + str(month) + '/' + str(day) + '/' + str(year) + str(month) + str(day) + '_' + str(hour) + str(minute) + str(second) + '_' + str(obsid) + '/'
-        try:
-            wave = 1400
+        
+        # Check which SJI images are avialable.
+        sji_files_avail = [file for file in os.listdir(path) if 'SJI' in file]
+        
+        skip=False
+        
+        if wave == 1400:
             filename = f'iris_l2_{year}{month}{day}_{hour}{minute}{second}_{obsid}_SJI_{wave}_t000.fits'
-
-            hdulist = ASTROPY_FILE_METHOD(path+filename)
-            print(hdulist.info())
-
-        except Exception:
             try:
-                wave = 1330
-                filename = f'iris_l2_{year}{month}{day}_{hour}{minute}{second}_{obsid}_SJI_{wave}_t000.fits'
-
                 hdulist = ASTROPY_FILE_METHOD(path+filename)
                 print(hdulist.info())
             except Exception:
-                wave = 2796
-                filename = f'iris_l2_{year}{month}{day}_{hour}{minute}{second}_{obsid}_SJI_{wave}_t000.fits'
-
+                print(f"{wave} is not available, skipping")
+                
+                
+        elif wave == 1330:
+                
+            filename = f'iris_l2_{year}{month}{day}_{hour}{minute}{second}_{obsid}_SJI_{wave}_t000.fits'
+            try:
                 hdulist = ASTROPY_FILE_METHOD(path+filename)
                 print(hdulist.info())
+            except Exception:
+                print(f"{wave} is not available, skipping")
+                
+                
+        elif wave == 2796:
+                
+            filename = f'iris_l2_{year}{month}{day}_{hour}{minute}{second}_{obsid}_SJI_{wave}_t000.fits'
+            try:
+                hdulist = ASTROPY_FILE_METHOD(path+filename)
+                print(hdulist.info())
+            except Exception:
+                print(f"{wave} is not available, skipping")
+                
+        else:
+            raise ValueError(f"{wave} is not available, stopping. Choose existing file")
+            
 
         filename_raster_list = sorted([file for file in os.listdir(path) if fnmatch.fnmatch(file, '*_r*.fits')])
         num_of_files = len(filename_raster_list)
@@ -176,13 +193,13 @@ class IRIS_SJI_cube:
 
         hdrs_time_primary_raster = [(ASTROPY_FILE_METHOD(path+file))[0].header for file in filename_raster_list] # list of primary headers for each raster fits file
         hdrs_timespecific_raster = [(ASTROPY_FILE_METHOD(path+file))[num_of_ext-2] for file in filename_raster_list] # time specific additional headers or raster
-
-        # get line number
+        
+        # get line number for Mg raster
         for i in range(num_of_ext-2):
             if "Mg II" in (ASTROPY_FILE_METHOD(path+filename_raster_list[0]))[0].header['TDESC'+str(i+1)]:
                 line_num = i+1
                 break
-
+        
         hdrs_time_linespec_raster = [(ASTROPY_FILE_METHOD(path+file))[line_num].header for file in filename_raster_list] # list of line specific headers for each raster fits file
 
 
@@ -214,11 +231,11 @@ class IRIS_SJI_cube:
 
         # add additional information to raster header
         for i in range( len(raster_header) ):
-            raster_header[i]['XCEN'] = raster_header[i]['XCENIX']
-            raster_header[i]['YCEN'] = raster_header[i]['YCENIX']
-            raster_header[i]['CRVAL2'] = raster_header[i]['YCENIX']
+            raster_header[i]['XCEN'] = raster_header[i]['XCENIX'] 
+            raster_header[i]['YCEN'] = raster_header[i]['YCENIX'] 
+            raster_header[i]['CRVAL2'] = raster_header[i]['YCENIX'] 
 
-            # set EXPTIME = EXPTIMEF in FUV and EXPTIME = EXPTIMEN in NUV
+            # set EXPTIME = EXPTIMEF in FUV and EXPTIME = EXPTIMEN in NUV 
             waveband = raster_header[i]['TDET'+str(line_num)][0]
             raster_header[i]['EXPTIME'] = raster_header[i]['EXPTIME'+waveband]
 
@@ -235,7 +252,7 @@ class IRIS_SJI_cube:
         self.iris_coordinates_sji = iris_coordinates(hdulist[0].header, 'sji')
         header_coord = hdrs_time_primary_raster[0] + hdrs_time_linespec_raster[0]
         self.iris_coordinates_raster = iris_coordinates(header_coord, 'raster')
-
+        
 
         # check if length of timespecific header is same as lenght of header:
         assert hdulist[1].data.shape[0] == primary_header_sji['NAXIS3'], 'Length of time specific header is not equal to length header file'
@@ -271,17 +288,16 @@ class IRIS_SJI_cube:
         raster_time = Time(self.raster_header[0]['STARTOBS']) + TimeDelta(np.array([self.raster_header[i]['TIME'] for i in range(len(self.raster_header))]), format='sec')
         self.raster_times = raster_time
         self.n_raster_pos = raster_header[0]['NRASTERP']
-
+        
         sji_data = hdulist[0].data
-
+        
         self.sji_times = times
-
+        
         self.data = sji_data
         self.filename = filename
         self.path = path
 
         hdulist.close()
-
     def get_sunpy_wcs(self, loc):
         """ Returns the WCS object for the sunpy Map object created for SJI data at a given time step."""
         setattr(self, '_sunpy_wcs', sunpy.map.Map(self.data[loc], self.sji_header[loc]).wcs)
