@@ -7,27 +7,18 @@ Author: Jonas Zbinden, github: @jonaszubindu, email: jonas.zbinden@unibe.ch
 
 # Import any necessary libraries
 
-from copy import deepcopy
-
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
 import sunpy.map
 from astropy.coordinates import SkyCoord
 from astropy.time import Time, TimeDelta
-from astropy.wcs.utils import wcs_to_celestial_frame
 import astropy.io.fits as fits
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord
-from astropy.visualization.wcsaxes import WCSAxes
-from sunpy.net import Fido
-from sunpy.net import attrs as a
 from matplotlib.patches import Polygon
 from matplotlib import colors as cs
-from sunpy.visualization.colormaps import color_tables as ct
 
-from matplotlib import cm
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.ticker import MultipleLocator
 
 from sunpy.time import parse_time
@@ -36,24 +27,17 @@ from astropy.io import fits
 import os
 import subprocess
 import warnings
-
-import utils
-from irisreader import observation
 import fnmatch
 
 
-import json
-import urllib.request
 import drms
 from datetime import datetime as dt_obj
 from datetime import timedelta
 from astropy.time import Time
 from scipy.signal import correlate2d
-import numpy.ma as ma
 
 import utils_models_MgIIk as mdls
 import torch
-import pandas as pd
 
 
 
